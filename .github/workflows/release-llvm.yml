@@ -1,0 +1,58 @@
+name: Release LLVM
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "version to use in tag name; without the leading 'v', or prefix"
+        required: false
+
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+#  build-linux-gnu-emscripten-musl:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Install system dependencies
+#        run: |
+#          sudo apt-get update && sudo apt-get install -y cmake ninja-build curl git libssl-dev pkg-config clang lld
+#
+#      - name: Install Rust stable toolchain
+#        uses: actions-rs/toolchain@v1
+#        with:
+#          profile: minimal
+#          toolchain: stable
+#          components: rust-src
+#          target: wasm32-unknown-emscripten
+#
+#      - name: Install LLVM build dependencies
+#        run: |
+#          make install-llvm-builder
+#          revive-llvm --target-env emscripten clone
+
+  build-macos-gnu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rust-src
+          target: wasm32-unknown-emscripten
+
+      - name: Build LLVM
+        run: |
+          make install-llvm-builder
+          revive-llvm build --llvm-projects lld --llvm-projects clang
+          tar -cf llvm-macos.tar.gz target-llvm/gnu/target-final
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: llvm-macos.tar.gz
+          path: llvm-macos.tar.gz
