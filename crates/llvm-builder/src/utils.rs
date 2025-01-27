@@ -117,7 +117,7 @@ pub fn ninja(build_dir: &Path) -> anyhow::Result<()> {
 pub fn absolute_path<P: AsRef<Path>>(path: P) -> anyhow::Result<PathBuf> {
     let mut full_path = std::env::current_dir()?;
     full_path.push(path);
-    Ok(full_path)
+    Ok(full_path.canonicalize()?)
 }
 
 ///
