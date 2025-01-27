@@ -302,15 +302,14 @@ pub fn build(
     } else {
         anyhow::bail!("Unsupported target architecture");
     }
-
-    crate::builtins::build(
-        build_type,
-        target_env,
-        default_target,
-        extra_args,
-        ccache_variant,
-        sanitizer,
-    )?;
+    // crate::builtins::build(
+    //     build_type,
+    //     target_env,
+    //     default_target,
+    //     extra_args,
+    //     ccache_variant,
+    //     sanitizer,
+    // )?;
 
     Ok(())
 }
