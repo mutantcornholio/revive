@@ -1,0 +1,169 @@
+name: Release LLVM
+
+on:
+  push:
+    tags:
+      - "llvm*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "LLVM binaries release: ${{ github.ref_name }}"
+          body: "This release includes binaries of LLVM, used to compile revive itself"
+          make_latest: false
+
+  build-macos-gnu:
+    needs: create-release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install macos deps
+        run: |
+          brew install ninja
+
+      - name: versions
+        run: |
+          rustup show
+          cargo --version
+          cmake --version
+          echo "bash:" && bash --version
+          echo "ninja:" && ninja --version
+          echo "clang:" && clang --version
+
+      - name: Build LLVM
+        run: |
+          make install-llvm
+
+      - name: package artifacts
+        run: |
+          tar -cf "${{ github.ref_name }}-macos-gnu.tar.gz" target-llvm/gnu/target-final
+
+      - name: upload archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            "${{ github.ref_name }}-macos-gnu.tar.gz"
+
+
+  build-linux-all:
+    needs: create-release
+#    runs-on: parity-large
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install linux deps
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build curl git libssl-dev pkg-config clang lld
+
+      - name: Install Rust stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: rust-src
+          target: wasm32-unknown-emscripten
+
+      - name: versions
+        run: |
+          rustup show
+          cargo --version
+          cmake --version
+          echo "bash:" && bash --version
+          echo "ninja:" && ninja --version
+          echo "clang:" && clang --version
+
+      - name: Build host LLVM
+        run: |
+          make install-llvm
+
+      - name: Build musl LLVM
+        run: |
+          revive-llvm --target-env musl clone
+          revive-llvm --target-env musl build --llvm-projects lld --llvm-projects clang
+
+      - name: Build emscripten LLVM
+        run: |
+          revive-llvm --target-env emscripten clone
+          source emsdk/emsdk_env.sh
+          revive-llvm --target-env emscripten build --llvm-projects lld
+
+      - name: package artifacts
+        run: |
+          tar -cf "${{ github.ref_name }}-linux-gnu.tar.gz" target-llvm/gnu/target-final
+          tar -cf "${{ github.ref_name }}-emscripten.tar.gz" target-llvm/emscripten/target-final
+          tar -cf "${{ github.ref_name }}-musl.tar.gz" target-llvm/musl/target-final
+
+      - name: upload archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            "${{ github.ref_name }}-linux-gnu.tar.gz"
+            "${{ github.ref_name }}-emscripten.tar.gz"
+
+  build-windows-gnu:
+    needs: create-release
+    runs-on: windows-latest
+#    runs-on: lorwyn
+    env:
+      MSYSTEM: "MINGW"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install win deps
+        run: |
+          choco install ninja
+
+      - name: Setup msys2
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          install: >-
+            base-devel
+            mingw-w64-x86_64-clang
+            mingw-w64-x86_64-lld
+            mingw-w64-x86_64-rust
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gcc-libs
+            mingw-w64-x86_64-python
+            mingw-w64-clang-x86_64-riscv64-unknown-elf-toolchain
+
+      - name: Prepare env
+        shell: "msys2 {0}"
+        run: |
+          echo "/c/Users/runneradmin/.cargo/bin" >> "${GITHUB_PATH}"
+
+      - name: versions
+        shell: "msys2 {0}"
+        run: |
+          rustup show
+          cargo --version
+          cmake --version
+          ninja --version
+
+      - name: Build LLVM
+        shell: "msys2 {0}"
+        env:
+          VERBOSE: 1
+          LIBSTDCPP_SOURCE_PATH: "${{ steps.msys2.outputs.msys2-location }}/mingw64/lib/libstdc++.a"
+        run: |
+          make install-llvm
+
+      - name: package artifacts
+        run: |
+          tar -cf "${{ github.ref_name }}-windows-gnu.tar.gz" target-llvm/gnu/target-final
+
+      - name: upload archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "${{ github.ref_name }}-windows-gnu.tar.gz"
